@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# 训练输出（模型权重、checkpoint、日志）
+output/
+checkpoint-*/
+*.safetensors
+*.bin
+*.pt
+*.pth
+runs/
+
+# 预处理后的数据
+data/processed/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 环境变量
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
