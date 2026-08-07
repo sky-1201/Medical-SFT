@@ -210,8 +210,26 @@ def main():
     print("医疗数据预处理流水线")
     print("=" * 60)
 
-    # [已补齐] 输入文件指向你的真实医疗数据
-    input_file = "data/medical_sft_1K_format.jsonl"
+    # [已补齐] 输入文件：支持 3 万条高质量医疗数据
+    import sys
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    else:
+        # 默认：优先用 3 万条数据，回退到 1000 条
+        candidates = [
+            "data/medical_finetune_30000.jsonl",
+            "data/medical_30k.jsonl",
+            "data/medical_sft_1K_format.jsonl",
+            "data/raw_data.jsonl",
+        ]
+        input_file = None
+        for f in candidates:
+            if Path(f).exists():
+                input_file = f
+                break
+        if input_file is None:
+            print("[ERROR] 没有找到数据文件")
+            return
     output_dir = Path("data/processed")
     output_dir.mkdir(exist_ok=True)
 

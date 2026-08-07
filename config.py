@@ -86,8 +86,8 @@ class TrainingConfig:
     per_device_eval_batch_size: int = 4
     gradient_accumulation_steps: int = 4
 
-    # [已补齐] 1000 条数据，epoch=5 保证模型充分学习（数据量小可以多跑几轮）
-    num_train_epochs: int = 5
+    # [已补齐] 3 万条数据，epoch=3 足够（数据量大，不用反复看同一份数据）
+    num_train_epochs: int = 3
 
     # [已补齐] Day4: 学习率 —— LoRA 微调通常用 1e-4 ~ 5e-4
     #   比全量微调（1e-5）大一个数量级，因为只更新少量参数
@@ -101,9 +101,9 @@ class TrainingConfig:
     bf16: bool = True                      # [GPU] 4090 支持 bf16，加速+省显存
 
     # 日志与保存
-    logging_steps: int = 10
-    save_steps: int = 200                             # 必须被 eval_steps 整除，否则报错
-    eval_steps: int = 200                  # [已补齐] 1000条数据，200步评估一次更合理
+    logging_steps: int = 50                            # 3万条数据，50步打一次log更合理
+    save_steps: int = 500                              # 每500步保存（约0.3个epoch）
+    eval_steps: int = 500                              # 每500步评估一次
     save_total_limit: int = 3
 
     # 输出
