@@ -77,7 +77,7 @@ class TrainingConfig:
 
     # [已补齐] 最大序列长度 —— 1000条数据以短问答为主，512 足够且省显存
     #   长对话场景（多轮问诊）可以开到 1024 或 2048
-    max_seq_length: int = 1024                      # [GPU] 24G显存绰绰有余
+    max_seq_length: int = 512                       # [GPU] 先保持512，后面数据多了再调大
 
     # [已补齐] Day4: batch_size 和 gradient_accumulation 的关系
     #   有效 batch = per_device_batch × gradient_accumulation × GPU数
