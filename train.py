@@ -257,10 +257,9 @@ def train(model, tokenizer, train_dataset, eval_dataset, train_cfg: TrainingConf
         metric_for_best_model="eval_loss",       # 用验证集 loss 选最佳
 
         # 其他
-        use_cpu=True,                            # [已补齐] CPU 训练必须开启
-        report_to=[],                            # [已补齐] CPU 训练关掉 tensorboard
+        report_to="tensorboard",                 # [GPU] 开 tensorboard 看 loss 曲线
         remove_unused_columns=False,             # 保留 labels 列
-        dataloader_num_workers=0,                # [已补齐] CPU 训练设为 0（Windows 兼容）
+        dataloader_num_workers=2,                # [GPU] 恢复多进程加载
         seed=42,
     )
 
@@ -382,15 +381,11 @@ def main():
     print("Step 2/5: 加载模型 + 注入 LoRA")
     print("=" * 40)
 
-    # [已补齐] CPU训练：自动检测并调整 device_map
-    device_map = model_cfg.device_map if torch.cuda.is_available() else None
-    if device_map is None:
-        logger.info("  CPU 模式: device_map=None")
     model = load_model_with_lora(
         model_cfg.model_name_or_path,
         lora_cfg,
         torch_dtype=model_cfg.torch_dtype,
-        device_map=device_map,
+        device_map=model_cfg.device_map,
     )
 
     # Step 3: 数据

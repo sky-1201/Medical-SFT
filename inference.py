@@ -285,7 +285,7 @@ def launch_web_ui(model, tokenizer, system_prompt: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="医疗模型推理")
     parser.add_argument("--web", action="store_true", help="启动 Gradio Web 界面")
-    parser.add_argument("--base_model", default="Qwen/Qwen2.5-0.5B-Instruct",
+    parser.add_argument("--base_model", default="Qwen/Qwen2.5-1.5B-Instruct",
                         help="基座模型名称或路径")
     parser.add_argument("--lora_weights", default="./output",
                         help="LoRA adapter 路径")

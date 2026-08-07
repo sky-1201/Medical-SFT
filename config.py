@@ -20,7 +20,7 @@ class ModelConfig:
     # [已补齐] Day1: 医疗微调使用 Qwen2.5-1.5B-Instruct
     #   1.5B 模型显存占用 ~3GB，单张8GB显卡即可训练（LoRA后更省）
     #   如果显存充裕（>16GB），可以换成 Qwen/Qwen2.5-7B-Instruct
-    model_name_or_path: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    model_name_or_path: str = "Qwen/Qwen2.5-1.5B-Instruct"
 
     # [已补齐] Day1: torch_dtype 和 device_map
     #   torch_dtype="auto" → HuggingFace 自动选最优精度（bf16 > fp16 > fp32）
@@ -77,13 +77,13 @@ class TrainingConfig:
 
     # [已补齐] 最大序列长度 —— 1000条数据以短问答为主，512 足够且省显存
     #   长对话场景（多轮问诊）可以开到 1024 或 2048
-    max_seq_length: int = 512
+    max_seq_length: int = 1024                      # [GPU] 24G显存绰绰有余
 
     # [已补齐] Day4: batch_size 和 gradient_accumulation 的关系
     #   有效 batch = per_device_batch × gradient_accumulation × GPU数
     #   2 × 4 × 1 = 8 条/step，适合 1000 条数据
-    per_device_train_batch_size: int = 2
-    per_device_eval_batch_size: int = 2
+    per_device_train_batch_size: int = 4            # [GPU] 显存充裕，开大加速训练
+    per_device_eval_batch_size: int = 4
     gradient_accumulation_steps: int = 4
 
     # [已补齐] 1000 条数据，epoch=5 保证模型充分学习（数据量小可以多跑几轮）
@@ -98,7 +98,7 @@ class TrainingConfig:
     # [已补齐] Day5: 显存优化
     gradient_checkpointing: bool = True    # 用时间换显存
     fp16: bool = False
-    bf16: bool = False                     # CPU 训练不支持 bf16，GPU上再开
+    bf16: bool = True                      # [GPU] 4090 支持 bf16，加速+省显存
 
     # 日志与保存
     logging_steps: int = 10
