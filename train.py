@@ -17,7 +17,8 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="医疗模型训练")
     parser.add_argument("--stage", type=str, default="sft", choices=["sft", "dpo"])
-    args = parser.parse_args()
+    parser.add_argument("--local_rank", type=int, default=0, help="DeepSpeed 自动传入")
+    args, _ = parser.parse_known_args()
 
     if args.stage == "sft":
         from training.sft_train import run
