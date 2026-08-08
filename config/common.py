@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    model_name_or_path: str = "Qwen/Qwen3-4B-Instruct"
+    model_name_or_path: str = "Qwen/Qwen2.5-3B-Instruct"
     torch_dtype: str = "auto"
     device_map: str = "auto"
     use_chat_template: bool = True
