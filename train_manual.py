@@ -44,7 +44,8 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 from peft import LoraConfig, get_peft_model, TaskType
-from config import ModelConfig, LoraConfig as LoraCfg, TrainingConfig
+from config.common import ModelConfig, LoraConfig as LoraCfg
+from config.sft import SFTConfig as TrainingConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

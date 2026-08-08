@@ -217,6 +217,9 @@ def main():
     else:
         # 默认：优先用 3 万条数据，回退到 1000 条
         candidates = [
+            "data/mixed_train.jsonl",              # mix_data.py 默认输出
+            "data/medical_zh_80000.jsonl",
+            "data/medical_finetune_50000.jsonl",
             "data/medical_finetune_30000.jsonl",
             "data/medical_30k.jsonl",
             "data/medical_sft_1K_format.jsonl",
@@ -228,7 +231,10 @@ def main():
                 input_file = f
                 break
         if input_file is None:
-            print("[ERROR] 没有找到数据文件")
+            print("[ERROR] 没有找到数据文件。请先下载数据:")
+            print("  python scripts/download_medical_data.py --subset zh --num 80000")
+            print("  python scripts/download_general_data.py --num 20000")
+            print("  python scripts/mix_data.py data/medical_zh_80000.jsonl data/general_belle_20000.jsonl --split")
             return
     output_dir = Path("data/processed")
     output_dir.mkdir(exist_ok=True)

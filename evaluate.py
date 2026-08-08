@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
-from config import ModelConfig as ModelCfg
+from config.common import ModelConfig as ModelCfg
 
 logging.basicConfig(
     level=logging.INFO,
@@ -279,7 +279,7 @@ def side_by_side_compare(
 
 
 # ============================================
-# [已补齐] 医疗测试问题
+# [已补齐] 医疗测试问题（专业问答 + 多轮对话）
 # ============================================
 MEDICAL_TEST_QUESTIONS = [
     "我最近频繁头痛，可能是哪些原因导致的？需要做什么检查？",
@@ -292,6 +292,21 @@ MEDICAL_TEST_QUESTIONS = [
     "轻度抑郁症有哪些早期信号？应该寻求什么帮助？",
 ]
 
+# [升级] 通用对话测试（验证灾难性遗忘是否解决）
+GENERAL_TEST_QUESTIONS = [
+    "你好，今天天气真好",
+    "请简单介绍一下中国",
+    "我刚刚跟你说了什么？",
+    "请用50字总结人工智能",
+    "讲一个简短的笑话",
+]
+
+# [升级] 多轮对话测试（验证上下文记忆能力）
+MULTITURN_TEST = [
+    ["扭伤后应该怎么处理？", "抽筋呢？", "我第一个问题问的是什么？"],
+    ["感冒了吃什么药？", "这个药有副作用吗？", "回到第一个问题，感冒了还能做什么？"],
+]
+
 
 def main():
     print("=" * 60)
@@ -300,7 +315,17 @@ def main():
 
     # [已补齐] 配置
     base_model_name = ModelCfg().model_name_or_path
-    lora_weights_path = "./output"
+    # [升级] 支持 SFT 或 DPO 模型路径
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lora_weights", default="./output/sft", help="LoRA 路径")
+    parser.add_argument("--base_model", default=None)
+    parser.add_argument("--skip-base", action="store_true", help="跳过基座模型对比（省显存）")
+    args_eval, _ = parser.parse_known_args()
+
+    lora_weights_path = args_eval.lora_weights
+    if args_eval.base_model:
+        base_model_name = args_eval.base_model
     eval_data_path = "data/processed/eval.jsonl"
     system_prompt = (
         "你是一个专业的医疗健康助手，具备丰富的医学知识。"
@@ -364,14 +389,42 @@ def main():
     print(f"  Perplexity（微调后）: {ppl_finetuned:.2f}")
     print(f"  对比报告: evaluation_report.md")
 
-    # [已补齐] 顺便打印几个对比结果到控制台
+    # [已补齐] 快速预览
     print(f"\n{'='*60}")
-    print(f"快速预览（前 3 个问题）")
+    print(f"快速预览（前 3 个医疗问题）")
     print(f"{'='*60}")
     for i, r in enumerate(results[:3]):
         print(f"\nQ{i+1}: {r['question'][:60]}...")
         print(f"  微调前: {r['base_model_answer'][:120]}...")
         print(f"  微调后: {r['finetuned_model_answer'][:120]}...")
+
+    # [升级] 通用对话测试（检查灾难性遗忘）
+    print(f"\n{'='*60}")
+    print(f"通用对话能力测试")
+    print(f"{'='*60}")
+    for q in GENERAL_TEST_QUESTIONS:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": q},
+        ]
+        ans = generate_response(model, tokenizer, messages)
+        print(f"  Q: {q}")
+        print(f"  A: {ans[:200]}\n")
+
+    # [升级] 多轮对话测试
+    print(f"{'='*60}")
+    print(f"多轮对话测试")
+    print(f"{'='*60}")
+    for turn_set in MULTITURN_TEST:
+        print(f"  对话: {' -> '.join(turn_set)}")
+        messages = [{"role": "system", "content": system_prompt}]
+        for j, turn in enumerate(turn_set):
+            messages.append({"role": "user", "content": turn})
+            ans = generate_response(model, tokenizer, messages, temperature=0.3)
+            messages.append({"role": "assistant", "content": ans})
+            print(f"    Q{j+1}: {turn}")
+            print(f"    A{j+1}: {ans[:200]}\n")
+        print(f"   {'-' * 56}\n")
 
 
 if __name__ == "__main__":

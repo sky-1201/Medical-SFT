@@ -11,6 +11,8 @@
     python scripts/download_medical_data.py --subset reward     # reward 子集（奖励模型）
     python scripts/download_medical_data.py --num 50000         # 下载 5 万条
     python scripts/download_medical_data.py --num all           # 下载全部
+    python scripts/download_medical_data.py --subset finetune --num 50000
+
 
   四个子集说明:
     finetune    → SFT 微调用，instruction/input/output 格式，最适合你
@@ -75,12 +77,13 @@ def convert_zh(example):
 
 
 def convert_reward(example):
-    """reward 子集：取 chosen 做 SFT"""
+    """reward 子集：chosen 放 conversations，rejected 单独存，供 DPO 使用"""
     return {
         "conversations": [
             {"from": "human", "value": example["question"]},
             {"from": "gpt", "value": example["response_chosen"]},
-        ]
+        ],
+        "rejected": example["response_rejected"],
     }
 
 
@@ -130,7 +133,7 @@ def main():
     converter = CONVERTERS[subset]
 
     print(f"[2/3] 下载 shibing624/medical ({subset}) 数据集...")
-    ds = load_dataset("shibing624/medical", subset, split="train")
+    ds = load_dataset("shibing624/medical", subset, split="train", trust_remote_code=True)
     total = len(ds)
     print(f"  总数据量: {total} 条")
 

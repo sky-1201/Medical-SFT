@@ -287,7 +287,7 @@ if __name__ == "__main__":
     parser.add_argument("--web", action="store_true", help="启动 Gradio Web 界面")
     parser.add_argument("--base_model", default="Qwen/Qwen2.5-1.5B-Instruct",
                         help="基座模型名称或路径")
-    parser.add_argument("--lora_weights", default="./output",
+    parser.add_argument("--lora_weights", default="./output/sft",
                         help="LoRA adapter 路径")
     parser.add_argument("--port", type=int, default=7860,
                         help="Gradio 端口")
