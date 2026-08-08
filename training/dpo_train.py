@@ -109,8 +109,10 @@ def run():
         print("  请先: python train.py --stage sft")
         return
 
+    import os as _os
+    _device_map = "auto" if int(_os.getenv("WORLD_SIZE", "1")) <= 1 else None
     base_model = AutoModelForCausalLM.from_pretrained(
-        model_cfg.model_name_or_path, torch_dtype="auto", device_map="auto", trust_remote_code=True)
+        model_cfg.model_name_or_path, torch_dtype="auto", device_map=_device_map, trust_remote_code=True)
     model = PeftModel.from_pretrained(base_model, sft_path, is_trainable=True)
     logger.info("SFT LoRA 已加载")
 
@@ -152,7 +154,7 @@ def run():
 
     # ref_model: 冻结的 SFT 模型作为参考
     ref_model = AutoModelForCausalLM.from_pretrained(
-        model_cfg.model_name_or_path, torch_dtype="auto", device_map="auto", trust_remote_code=True)
+        model_cfg.model_name_or_path, torch_dtype="auto", device_map=_device_map, trust_remote_code=True)
     ref_model = PeftModel.from_pretrained(ref_model, sft_path)
     ref_model.eval()
     for p in ref_model.parameters():

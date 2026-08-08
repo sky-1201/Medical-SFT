@@ -3,6 +3,7 @@
   training/sft_train.py —— SFT 监督微调训练
 =============================================================================
 """
+import os
 import math
 import logging
 from pathlib import Path
@@ -108,8 +109,10 @@ def run():
 
     # Step 1-2: 加载 tokenizer + 模型
     tokenizer = load_tokenizer(model_cfg.model_name_or_path)
+    # DeepSpeed 分布式时不能设 device_map，DeepSpeed 自己管显卡
+    device_map = "auto" if int(os.getenv("WORLD_SIZE", "1")) <= 1 else None
     model = load_model_with_lora(model_cfg.model_name_or_path, lora_cfg,
-                                 torch_dtype=model_cfg.torch_dtype, device_map=model_cfg.device_map)
+                                 torch_dtype=model_cfg.torch_dtype, device_map=device_map)
 
     # Step 3: 数据
     train_dataset, eval_dataset = load_data(tokenizer, train_cfg, data_cfg)
