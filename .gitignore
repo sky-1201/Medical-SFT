@@ -21,11 +21,11 @@ checkpoint-*/
 *.pth
 runs/
 
-# 数据（大文件不上传，小样本除外）
+# 数据（忽略所有 JSONL，只保留小样本）
+data/*.jsonl
+!data/medical_sft_1K_format.jsonl
+!data/raw_data.jsonl
 data/processed/
-data/medical_*k.jsonl
-data/general_*.jsonl
-data/mixed_*.jsonl
 
 # IDE
 .idea/

@@ -111,6 +111,9 @@ def main():
                         help="数据集子集: zh(综合) / finetune(指令微调,推荐) / pretrain(预训练) / reward(奖励模型)")
     parser.add_argument("--num", type=str, default="30000",
                         help="下载条数，默认30000。传 'all' 下载全部")
+    parser.add_argument("--shuffle", action="store_true",
+                        help="随机采样而不是取前N条（195万数据建议开启）")
+    parser.add_argument("--seed", type=int, default=42, help="随机种子")
     parser.add_argument("--output", type=str, default=None,
                         help="输出文件路径（默认: data/medical_{subset}_{num}.jsonl）")
     parser.add_argument("--no-mirror", action="store_true",
@@ -150,7 +153,12 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"[3/3] 格式转换 → conversations (human/gpt) + 保存...")
-    ds = ds.select(range(num_samples))
+    if args.shuffle:
+        ds = ds.shuffle(seed=args.seed).select(range(num_samples))
+        print(f"  随机采样 (seed={args.seed})")
+    else:
+        ds = ds.select(range(num_samples))
+        print(f"  顺序取前 {num_samples} 条")
     ds = ds.map(converter, remove_columns=ds.column_names)
 
     count = 0
