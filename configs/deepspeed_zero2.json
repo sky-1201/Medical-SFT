@@ -20,7 +20,7 @@
     },
     "gradient_clipping": 1.0,
     "train_batch_size": 64,
-    "train_micro_batch_size_per_gpu": 8,
-    "gradient_accumulation_steps": 2,
+    "train_micro_batch_size_per_gpu": 16,
+    "gradient_accumulation_steps": 1,
     "wall_clock_breakdown": false
 }

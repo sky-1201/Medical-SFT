@@ -17,9 +17,9 @@ class SFTConfig:
 
     # 训练
     num_train_epochs: int = 2                        # 10万条数据跑3轮效果更好
-    per_device_train_batch_size: int = 8
-    per_device_eval_batch_size: int = 8
-    gradient_accumulation_steps: int = 2            # effective batch = 8×2×4卡 = 64
+    per_device_train_batch_size: int = 16
+    per_device_eval_batch_size: int = 16
+    gradient_accumulation_steps: int = 1            # effective batch = 16×1×4卡 = 64
     max_seq_length: int = 1024                       # A800 80G 完全够，不截断长回答
 
     learning_rate: float = 3e-4                       # batch 32→64，lr 按比例上调
