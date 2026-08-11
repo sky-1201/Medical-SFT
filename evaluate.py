@@ -415,7 +415,7 @@ def main():
                 if not r["base_model_answer"]:
                     continue
                 print(f"  [{i+1}/{len(medical_results)}] {r['question'][:50]}...")
-                scores = call_llm_judge(r["question"], r["base_model_answer"], r["finetuned_answer"], api_key)
+                scores = call_llm_judge(r["question"], r["base_model_answer"], r["finetuned_model_answer"], api_key)
                 r["scores"] = scores
                 if scores:
                     b_avg = sum(scores["A"].values()) / 4
