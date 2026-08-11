@@ -13,7 +13,7 @@ class DPOConfig:
     sft_lora_path: str = "./output/sft"              # 从 SFT 训练好的 LoRA 出发
 
     # 数据
-    dpo_data_path: str = "data/medical_reward_5000.jsonl"
+    dpo_data_path: str = "data/medical_reward_3800.jsonl"
 
     # DPO 核心
     dpo_beta: float = 0.1                            # KL 惩罚：越小越激进

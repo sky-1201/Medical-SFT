@@ -5,9 +5,14 @@
 
   [已补齐] Day7: 把你的微调模型用起来！
 
-  支持两种模式:
-  1. 命令行交互: python inference.py           → 终端对话
-  2. Gradio Web UI: python inference.py --web   → 浏览器界面（可以放简历上）
+  用法:
+    python inference.py --base_model /path/to/model --lora_weights ./output/sft
+    python inference.py --web                # Gradio Web UI
+
+  服务器上（模型已下载到本地）:
+    python inference.py \
+        --base_model /root/autodl-tmp/models/models/qwen--Qwen2.5-7B-Instruct/snapshots/master \
+        --lora_weights ./output/sft
 
   借鉴：MedicalGPT demo/inference.py + demo/gradio_demo.py
 =============================================================================
