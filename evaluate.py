@@ -1,28 +1,23 @@
 """
 =============================================================================
-  evaluate.py —— 模型效果评估（PPL + LLM-as-Judge + 综合报告）
+  evaluate.py —— 模型效果评估（PPL + 综合报告）
 =============================================================================
 
   用法:
-    python evaluate.py --lora_weights ./output/sft           # 基础评估
-    python evaluate.py --lora_weights ./output/sft --judge   # 基础 + LLM打分
-    python evaluate.py --lora_weights ./output/dpo --judge   # 评估 DPO 模型
-
-  LLM-as-Judge 需要阿里云百炼 API Key:
-    export DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx
+    python evaluate.py --lora_weights ./output/sft
+    python evaluate.py --lora_weights ./output/dpo
 =============================================================================
 """
 import os
 import sys
 import math
-import json
-import re
+import random
 import argparse
 import torch
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -90,14 +85,14 @@ def load_finetuned_model(
 
 
 # ============================================
-# Step 2: Perplexity
+# Step 2: Perplexity（随机抽样）
 # ============================================
 def compute_perplexity(
     model, tokenizer, eval_data_path: str, max_seq_length: int = 512,
-    max_samples: int = 200, system_prompt: str = "",
+    max_samples: int = 500, system_prompt: str = "",
 ) -> float:
     from data.dataset import SFTDataset
-    from torch.utils.data import DataLoader
+    from torch.utils.data import DataLoader, Subset
 
     logger.info("计算 Perplexity...")
     if not Path(eval_data_path).exists():
@@ -105,13 +100,17 @@ def compute_perplexity(
         return float("inf")
 
     dataset = SFTDataset(eval_data_path, tokenizer, max_seq_length=max_seq_length, system_prompt=system_prompt)
+
+    if len(dataset) > max_samples:
+        indices = random.sample(range(len(dataset)), max_samples)
+        dataset = Subset(dataset, indices)
+        logger.info(f"  从 {len(SFTDataset(eval_data_path, tokenizer).raw_data)} 条中随机抽取 {max_samples} 条")
+
     dataloader = DataLoader(dataset, batch_size=1)
 
     total_loss, total_tokens, processed = 0.0, 0, 0
     with torch.no_grad():
         for batch in dataloader:
-            if processed >= max_samples:
-                break
             batch = {k: v.to(model.device) for k, v in batch.items()}
             try:
                 outputs = model(**batch)
@@ -151,70 +150,7 @@ def generate_response(
 
 
 # ============================================
-# 读取 .env 文件（不依赖第三方库）
-# ============================================
-def _load_env():
-    """从项目根目录 .env 加载环境变量"""
-    env_file = Path(__file__).parent / ".env"
-    if env_file.exists():
-        with open(env_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    # 只设置尚未被 export 覆盖的变量
-                    if key.strip() not in os.environ:
-                        os.environ[key.strip()] = val.strip().strip('"').strip("'")
-
-_load_env()
-
-# ============================================
-# Step 4: LLM-as-Judge（阿里云百炼）
-# ============================================
-JUDGE_MODEL = "qwen-max"
-
-def call_llm_judge(question: str, answer_base: str, answer_finetuned: str, api_key: str) -> Optional[Dict]:
-    """调用百炼 Qwen 做四维度打分"""
-    try:
-        from openai import OpenAI
-    except ImportError:
-        print("[ERROR] pip install openai")
-        return None
-
-    client = OpenAI(base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", api_key=api_key)
-
-    prompt = f"""你是一个严格的医学评估专家。对以下两个回答做四维度打分（1-5分）。
-
-评分标准：
-- 准确性(5分): 医学内容完全正确，无错误信息
-- 完整性(5分): 覆盖问题的所有要点
-- 专业性(5分): 术语使用恰当，回答结构清晰
-- 可读性(5分): 非医学背景的普通人能理解
-
-问题：{question}
-
-回答A（基座模型）：{answer_base[:1000]}
-
-回答B（微调后）：{answer_finetuned[:1000]}
-
-严格按 JSON 输出：
-{{"A":{{"准确性":X,"完整性":X,"专业性":X,"可读性":X}},"B":{{"准确性":X,"完整性":X,"专业性":X,"可读性":X}}}}"""
-
-    try:
-        resp = client.chat.completions.create(
-            model=JUDGE_MODEL, messages=[{"role": "user", "content": prompt}],
-            temperature=0.1, max_tokens=500,
-        )
-        content = resp.choices[0].message.content.strip()
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        return json.loads(json_match.group()) if json_match else None
-    except Exception as e:
-        print(f"  [WARN] 打分失败: {e}")
-        return None
-
-
-# ============================================
-# Step 5: 生成完整评估报告
+# Step 4: 生成完整评估报告
 # ============================================
 def generate_full_report(
     output_path: str,
@@ -223,82 +159,39 @@ def generate_full_report(
     general_results: List[Tuple[str, str]],
     multiturn_results: List[Tuple[List[str], List[str]]],
     model_name: str = "Qwen2.5-7B-Instruct",
-    eval_loss_base: float = None,
-    eval_loss_finetuned: float = None,
 ):
-    """把所有指标写入一份 Markdown 报告"""
-
     with open(output_path, "w", encoding="utf-8") as f:
-        # 头部
         f.write(f"# 医疗模型微调效果评估报告\n\n")
         f.write(f"**生成时间:** {datetime.now().strftime('%Y-%m-%d %H:%M')}  \n")
         f.write(f"**基座模型:** {model_name}  \n")
-        f.write(f"**微调方法:** LoRA (rank=16) + SFT  \n")
-        if any(r.get("scores") for r in medical_results):
-            f.write(f"**评估模型:** 阿里云百炼 {JUDGE_MODEL}  \n")
-        f.write("\n---\n\n")
+        f.write(f"**微调方法:** LoRA (rank=16) + SFT  \n\n")
+        f.write("---\n\n")
 
         # 一、PPL
         f.write("## 一、Perplexity（困惑度）\n\n")
         improvement = (ppl_base - ppl_finetuned) / ppl_base * 100 if ppl_base != float("inf") else 0
+        f.write("*PPL 越低表示模型对医疗文本越熟悉。评估时从验证集中随机抽取 500 条。*\n\n")
         f.write("| 指标 | 基座模型 | 微调后 | 提升 |\n")
         f.write("|------|------|------|------|\n")
         f.write(f"| PPL | {ppl_base:.2f} | {ppl_finetuned:.2f} | **{improvement:.1f}%** |\n")
-        if eval_loss_base and eval_loss_finetuned:
-            f.write(f"| Eval Loss | {eval_loss_base:.4f} | {eval_loss_finetuned:.4f} | — |\n")
         f.write("\n---\n\n")
 
-        # 二、LLM-as-Judge（如果有）
-        scored_results = [r for r in medical_results if r.get("scores")]
-        if scored_results:
-            f.write("## 二、LLM-as-Judge 四维度评分\n\n")
-
-            # 算均分
-            dims = ["准确性", "完整性", "专业性", "可读性"]
-            base_avg = {d: [] for d in dims}
-            fine_avg = {d: [] for d in dims}
-            for r in scored_results:
-                s = r["scores"]
-                for d in dims:
-                    base_avg[d].append(s["A"][d])
-                    fine_avg[d].append(s["B"][d])
-
-            f.write("| 维度 | 基座模型 | 微调后 | 提升 |\n")
-            f.write("|------|------|------|------|\n")
-            for d in dims:
-                b = sum(base_avg[d]) / len(base_avg[d])
-                ft = sum(fine_avg[d]) / len(fine_avg[d])
-                imp = (ft - b) / b * 100
-                f.write(f"| {d} | {b:.1f} | {ft:.1f} | **+{imp:.0f}%** |\n")
-
-            total_base = sum(sum(base_avg[d]) for d in dims) / (len(scored_results) * 4)
-            total_fine = sum(sum(fine_avg[d]) for d in dims) / (len(scored_results) * 4)
-            f.write(f"| **综合均分** | **{total_base:.1f}/5** | **{total_fine:.1f}/5** | **+{(total_fine-total_base)/total_base*100:.0f}%** |\n")
-            f.write(f"\n*共评估 {len(scored_results)} 道题，评分模型: {JUDGE_MODEL}*\n\n")
-            f.write("---\n\n")
-
-        # 三、医疗专业问答逐题对比
-        f.write("## 三、医疗专业问答对比\n\n")
+        # 二、医疗专业问答对比
+        f.write("## 二、医疗专业问答对比\n\n")
         for i, r in enumerate(medical_results):
             f.write(f"### Q{i+1}: {r['question']}\n\n")
-            f.write(f"**基座模型:**\n\n> {r['base_model_answer'][:600]}\n\n")
-            f.write(f"**微调后:**\n\n> {r['finetuned_model_answer'][:600]}\n\n")
-
-            if r.get("scores"):
-                s = r["scores"]
-                b_avg = sum(s["A"].values()) / 4
-                f_avg = sum(s["B"].values()) / 4
-                f.write(f"**LLM评分** — 基座: {b_avg:.1f}/5 | 微调后: {f_avg:.1f}/5\n\n")
+            f.write(f"**基座模型:**\n\n> {r['base_model_answer'][:800]}\n\n")
+            f.write(f"**微调后:**\n\n> {r['finetuned_model_answer'][:800]}\n\n")
             f.write("---\n\n")
 
-        # 四、通用对话测试
-        f.write("## 四、通用对话能力测试\n\n")
+        # 三、通用对话测试
+        f.write("## 三、通用对话能力测试\n\n")
         f.write("*验证微调后是否保留了通用对话能力（灾难性遗忘检查）*\n\n")
         for q, a in general_results:
             f.write(f"**Q:** {q}\n\n> {a}\n\n---\n\n")
 
-        # 五、多轮对话测试
-        f.write("## 五、多轮对话测试\n\n")
+        # 四、多轮对话测试
+        f.write("## 四、多轮对话测试\n\n")
         f.write("*验证微调后是否保留上下文记忆能力*\n\n")
         for turn_set, answers in multiturn_results:
             f.write(f"**对话:** {' → '.join(turn_set)}\n\n")
@@ -306,7 +199,7 @@ def generate_full_report(
                 f.write(f"**Q{j+1}:** {turn}\n\n> {ans}\n\n")
             f.write("---\n\n")
 
-    logger.info(f"[OK] 完整评估报告: {output_path}")
+    logger.info(f"[OK] 评估报告: {output_path}")
 
 
 # ============================================
@@ -316,14 +209,9 @@ def main():
     parser = argparse.ArgumentParser(description="医疗模型评估")
     parser.add_argument("--lora_weights", default="./output/sft", help="LoRA 路径")
     parser.add_argument("--base_model", default=None, help="基座模型（默认用 config）")
-    parser.add_argument("--judge", action="store_true", help="启用 LLM-as-Judge 打分")
-    parser.add_argument("--judge-model", default="qwen-plus", help="评分模型: qwen-plus/qwen-max")
     parser.add_argument("--report", default="evaluation_report.md", help="报告输出路径")
     parser.add_argument("--skip-base", action="store_true", help="跳过基座模型对比")
     args = parser.parse_args()
-
-    global JUDGE_MODEL
-    JUDGE_MODEL = args.judge_model
 
     base_model_name = args.base_model or ModelCfg().model_name_or_path
     lora_path = args.lora_weights
@@ -333,7 +221,6 @@ def main():
         "请用专业但易懂的语言回答用户的健康问题。"
     )
 
-    # 检查 LoRA
     if not Path(lora_path).exists() or not Path(f"{lora_path}/adapter_model.safetensors").exists():
         logger.error(f"LoRA 不存在: {lora_path}")
         return
@@ -359,7 +246,7 @@ def main():
     # Perplexity
     # ========================================
     print("\n" + "=" * 40)
-    print("Perplexity 评估")
+    print("Perplexity 评估（验证集随机抽取 500 条）")
     print("=" * 40)
 
     ppl_finetuned = compute_perplexity(model, tokenizer, eval_data_path, system_prompt=system_prompt)
@@ -382,7 +269,6 @@ def main():
         logger.info(f"  [{i+1}/{len(MEDICAL_TEST_QUESTIONS)}] {question[:50]}...")
 
         base_ans = ""
-        fine_ans = ""
         if base_model:
             try:
                 base_ans = generate_response(base_model, tokenizer, messages)
@@ -392,35 +278,11 @@ def main():
             fine_ans = generate_response(model, tokenizer, messages)
         except Exception as e:
             fine_ans = f"[生成失败: {e}]"
-
         medical_results.append({
             "question": question,
             "base_model_answer": base_ans,
             "finetuned_model_answer": fine_ans,
         })
-
-    # ========================================
-    # LLM-as-Judge（可选）
-    # ========================================
-    if args.judge:
-        api_key = os.getenv("DASHSCOPE_API_KEY", "")
-        if not api_key:
-            print("\n[WARN] 未设置 DASHSCOPE_API_KEY，跳过 LLM 打分")
-            print("  export DASHSCOPE_API_KEY=sk-xxx")
-        else:
-            print(f"\n" + "=" * 40)
-            print(f"LLM-as-Judge ({JUDGE_MODEL})")
-            print("=" * 40)
-            for i, r in enumerate(medical_results):
-                if not r["base_model_answer"]:
-                    continue
-                print(f"  [{i+1}/{len(medical_results)}] {r['question'][:50]}...")
-                scores = call_llm_judge(r["question"], r["base_model_answer"], r["finetuned_model_answer"], api_key)
-                r["scores"] = scores
-                if scores:
-                    b_avg = sum(scores["A"].values()) / 4
-                    f_avg = sum(scores["B"].values()) / 4
-                    print(f"    基座: {b_avg:.1f}/5  →  微调: {f_avg:.1f}/5")
 
     # ========================================
     # 通用对话测试
@@ -457,7 +319,7 @@ def main():
         print(f"   {'─' * 56}\n")
 
     # ========================================
-    # 生成完整报告
+    # 生成报告
     # ========================================
     print("=" * 40)
     print("生成评估报告")
@@ -467,14 +329,8 @@ def main():
         model_name=base_model_name,
     )
 
-    # 终屏
     print(f"\n[OK] 评估完成")
     print(f"  PPL: {ppl_base:.2f} → {ppl_finetuned:.2f} ({improvement:.1f}%)")
-    if any(r.get("scores") for r in medical_results):
-        scored = [r for r in medical_results if r.get("scores")]
-        base_total = sum(sum(s["A"].values())/4 for s in [_["scores"] for _ in scored]) / len(scored)
-        fine_total = sum(sum(s["B"].values())/4 for s in [_["scores"] for _ in scored]) / len(scored)
-        print(f"  LLM均分: {base_total:.1f}/5 → {fine_total:.1f}/5")
     print(f"  报告: {args.report}")
 
 
