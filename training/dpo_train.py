@@ -146,7 +146,7 @@ def run():
         logging_steps=dpo_cfg.logging_steps,
         save_steps=dpo_cfg.save_steps, eval_steps=dpo_cfg.eval_steps,
         save_total_limit=dpo_cfg.save_total_limit,
-        max_length=dpo_cfg.max_seq_length, max_prompt_length=dpo_cfg.max_prompt_length,
+        max_length=dpo_cfg.max_seq_length,
         beta=dpo_cfg.dpo_beta, loss_type=dpo_cfg.dpo_loss_type,
         deepspeed=dpo_cfg.deepspeed_config if Path(dpo_cfg.deepspeed_config).exists() else None,
         remove_unused_columns=False, report_to=[], seed=42,
