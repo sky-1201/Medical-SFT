@@ -124,10 +124,14 @@ def run():
         return
 
     raw_data = load_dpo_data(dpo_cfg.dpo_data_path)
-    dpo_dataset = prepare_dpo_dataset(raw_data, tokenizer, data_cfg.system_prompt, dpo_cfg.max_prompt_length)
-    if len(dpo_dataset) < 10:
-        print(f"[ERROR] DPO 数据太少 ({len(dpo_dataset)} 条)")
+    dpo_list = prepare_dpo_dataset(raw_data, tokenizer, data_cfg.system_prompt, dpo_cfg.max_prompt_length)
+    if len(dpo_list) < 10:
+        print(f"[ERROR] DPO 数据太少 ({len(dpo_list)} 条)")
         return
+
+    # [已补齐] 转成 HuggingFace Dataset（新版 trl 要求）
+    from datasets import Dataset
+    dpo_dataset = Dataset.from_list(dpo_list)
 
     # Step 4: DPO 训练
     print("\n[Step 4/5] DPO 训练")
