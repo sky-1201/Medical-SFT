@@ -102,9 +102,10 @@ def compute_perplexity(
     dataset = SFTDataset(eval_data_path, tokenizer, max_seq_length=max_seq_length, system_prompt=system_prompt)
 
     if len(dataset) > max_samples:
+        random.seed(42)  # 固定种子，确保每次评估同一批数据
         indices = random.sample(range(len(dataset)), max_samples)
         dataset = Subset(dataset, indices)
-        logger.info(f"  从 {len(SFTDataset(eval_data_path, tokenizer).raw_data)} 条中随机抽取 {max_samples} 条")
+        logger.info(f"  从 {len(SFTDataset(eval_data_path, tokenizer).raw_data)} 条中固定抽取 {max_samples} 条（seed=42）")
 
     dataloader = DataLoader(dataset, batch_size=1)
 
