@@ -4,8 +4,19 @@
 =============================================================================
 
   用法:
-    python evaluate.py --lora_weights ./output/sft
-    python evaluate.py --lora_weights ./output/dpo
+    # 本地
+    python evaluate.py --lora_weights ./output/sft --stage sft
+    python evaluate.py --lora_weights ./output/dpo --stage dpo
+
+    # SFT 评估（PPL 是核心指标）
+python evaluate.py --lora_weights ./output/sft \
+    --base_model /root/autodl-tmp/models/models/qwen--Qwen2.5-7B-Instruct/snapshots/master \
+    --report eval_sft.md --stage sft
+
+# DPO 评估（PPL 仅供参考，生成质量是核心）
+python evaluate.py --lora_weights ./output/dpo \
+    --base_model /root/autodl-tmp/models/models/qwen--Qwen2.5-7B-Instruct/snapshots/master \
+    --report eval_dpo.md --stage dpo
 =============================================================================
 """
 import os
@@ -160,21 +171,31 @@ def generate_full_report(
     general_results: List[Tuple[str, str]],
     multiturn_results: List[Tuple[List[str], List[str]]],
     model_name: str = "Qwen2.5-7B-Instruct",
+    stage: str = "sft",
 ):
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(f"# 医疗模型微调效果评估报告\n\n")
         f.write(f"**生成时间:** {datetime.now().strftime('%Y-%m-%d %H:%M')}  \n")
+        stage_label = "SFT + DPO" if stage == "dpo" else "SFT"
         f.write(f"**基座模型:** {model_name}  \n")
-        f.write(f"**微调方法:** LoRA (rank=16) + SFT  \n\n")
+        f.write(f"**微调方法:** LoRA (rank=16) + {stage_label}  \n\n")
         f.write("---\n\n")
 
-        # 一、PPL
-        f.write("## 一、Perplexity（困惑度）\n\n")
+        # 一、核心指标
+        if stage == "dpo":
+            f.write("## 一、核心指标\n\n")
+            f.write("**DPO 阶段的核心评估指标是 rewards/margins 和生成质量，PPL 仅作参考。**\n")
+            f.write("DPO 优化目标是让模型偏好 chosen 而非 rejected，与 PPL 的优化方向不同，因此 DPO 后 PPL 可能微涨，属正常现象。\n\n")
+        else:
+            f.write("## 一、Perplexity（困惑度）\n\n")
+
         improvement = (ppl_base - ppl_finetuned) / ppl_base * 100 if ppl_base != float("inf") else 0
-        f.write("*PPL 越低表示模型对医疗文本越熟悉。评估时从验证集中随机抽取 500 条。*\n\n")
-        f.write("| 指标 | 基座模型 | 微调后 | 提升 |\n")
+        note = "(仅供参考，非主要指标)" if stage == "dpo" else "(越低越好，SFT 核心指标)"
+        f.write(f"*PPL {note}。评估时从验证集中固定抽取 500 条（seed=42）。*\n\n")
+        f.write("| 指标 | 基座模型 | 微调后 | 变化 |\n")
         f.write("|------|------|------|------|\n")
-        f.write(f"| PPL | {ppl_base:.2f} | {ppl_finetuned:.2f} | **{improvement:.1f}%** |\n")
+        sign = "+" if improvement >= 0 else ""
+        f.write(f"| PPL | {ppl_base:.2f} | {ppl_finetuned:.2f} | **{sign}{improvement:.1f}%** |\n")
         f.write("\n---\n\n")
 
         # 二、医疗专业问答对比
@@ -211,6 +232,7 @@ def main():
     parser.add_argument("--lora_weights", default="./output/sft", help="LoRA 路径")
     parser.add_argument("--base_model", default=None, help="基座模型（默认用 config）")
     parser.add_argument("--report", default="evaluation_report.md", help="报告输出路径")
+    parser.add_argument("--stage", default="sft", choices=["sft", "dpo"], help="模型阶段")
     parser.add_argument("--skip-base", action="store_true", help="跳过基座模型对比")
     args = parser.parse_args()
 
@@ -327,7 +349,7 @@ def main():
     generate_full_report(
         args.report, ppl_base, ppl_finetuned,
         medical_results, general_results, multiturn_results,
-        model_name=base_model_name,
+        model_name=base_model_name, stage=args.stage,
     )
 
     print(f"\n[OK] 评估完成")
