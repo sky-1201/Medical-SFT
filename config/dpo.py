@@ -13,21 +13,21 @@ class DPOConfig:
     sft_lora_path: str = "./output/sft"              # 从 SFT 训练好的 LoRA 出发
 
     # 数据
-    dpo_data_path: str = "data/medical_reward_3800.jsonl"
+    dpo_data_path: str = "data/medical_dpo_merged.jsonl"
 
     # DPO 核心
     dpo_beta: float = 0.1                            # KL 惩罚：越小越激进
     dpo_loss_type: str = "sigmoid"
 
     # 训练（比 SFT 小，因为偏好对数据少）
-    num_train_epochs: int = 1
+    num_train_epochs: int = 2                        # 2400 条高质量数据，2 轮更充分
     per_device_train_batch_size: int = 2              # chosen+rejected 双份
     per_device_eval_batch_size: int = 2
     gradient_accumulation_steps: int = 4
-    max_seq_length: int = 1024
-    max_prompt_length: int = 512
+    max_seq_length: int = 4096                       # chosen 平均 3285 字，需 4096 完整覆盖
+    max_prompt_length: int = 1024
 
-    learning_rate: float = 5e-5                       # DPO 比 SFT 低
+    learning_rate: float = 5e-5                      # DPO 比 SFT 低
     warmup_ratio: float = 0.1
 
     # 显存

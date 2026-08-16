@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_dpo_data(data_path: str, max_samples: int = None) -> List[Dict]:
-    """加载 DPO 偏好对数据"""
+    """加载 DPO 偏好对数据（已经是 prompt/chosen/rejected 标准格式）"""
     data = []
     with open(data_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -28,10 +28,11 @@ def load_dpo_data(data_path: str, max_samples: int = None) -> List[Dict]:
                 continue
             try:
                 item = json.loads(line)
-                convs = item.get("conversations", [])
-                rejected = item.get("rejected", "")
-                if len(convs) >= 2 and rejected:
-                    data.append(item)
+                prompt = item.get("prompt", "").strip()
+                chosen = item.get("chosen", "").strip()
+                rejected = item.get("rejected", "").strip()
+                if prompt and chosen and rejected:
+                    data.append({"prompt": prompt, "chosen": chosen, "rejected": rejected})
             except json.JSONDecodeError:
                 continue
     if max_samples and len(data) > max_samples:
@@ -40,42 +41,26 @@ def load_dpo_data(data_path: str, max_samples: int = None) -> List[Dict]:
     return data
 
 
-def format_dpo_sample(item: Dict, tokenizer, system_prompt: str,
-                       max_prompt_length: int = 512) -> Optional[Dict[str, torch.Tensor]]:
-    """把一条偏好对转成 DPOTrainer 需要的 prompt/chosen/rejected 格式"""
-    convs = item.get("conversations", [])
-    rejected = item.get("rejected", "")
-    if len(convs) < 2:
-        return None
-
-    user_msgs = [c for c in convs if c.get("from") in ["human", "user"]]
-    assistant_msgs = [c for c in convs if c.get("from") in ["gpt", "assistant"]]
-    if not user_msgs or not assistant_msgs:
-        return None
-
-    user_content = user_msgs[-1].get("value", "")
-    chosen_content = assistant_msgs[-1].get("value", "")
-    if not user_content or not chosen_content or not rejected:
-        return None
-
-    prompt_msgs = []
-    if system_prompt:
-        prompt_msgs.append({"role": "system", "content": system_prompt})
-    prompt_msgs.append({"role": "user", "content": user_content})
-    prompt_text = tokenizer.apply_chat_template(prompt_msgs, tokenize=False, add_generation_prompt=True)
-
-    return {
-        "prompt": prompt_text,
-        "chosen": chosen_content + tokenizer.eos_token,
-        "rejected": rejected + tokenizer.eos_token,
-    }
-
-
 def prepare_dpo_dataset(data: List[Dict], tokenizer, system_prompt: str,
                          max_prompt_length: int = 512) -> List[Dict]:
-    """全部偏好对 → DPOTrainer 格式"""
-    formatted = [format_dpo_sample(it, tokenizer, system_prompt, max_prompt_length) for it in data]
-    formatted = [f for f in formatted if f is not None]
+    """数据已经是标准格式，只需补 system prompt + eos token"""
+    formatted = []
+    for item in data:
+        # 在 prompt 前加 system prompt
+        prompt_msgs = []
+        if system_prompt:
+            prompt_msgs.append({"role": "system", "content": system_prompt})
+        prompt_msgs.append({"role": "user", "content": item["prompt"]})
+        prompt_text = tokenizer.apply_chat_template(
+            prompt_msgs, tokenize=False, add_generation_prompt=True
+        )
+
+        formatted.append({
+            "prompt": prompt_text,
+            "chosen": item["chosen"] + tokenizer.eos_token,
+            "rejected": item["rejected"] + tokenizer.eos_token,
+        })
+
     logger.info(f"有效 DPO 样本: {len(formatted)} / {len(data)}")
     return formatted
 
