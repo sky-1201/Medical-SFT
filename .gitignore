@@ -26,6 +26,7 @@ data/*.jsonl
 !data/medical_sft_1K_format.jsonl
 !data/raw_data.jsonl
 data/processed/
+data/master/
 
 # IDE
 .idea/
