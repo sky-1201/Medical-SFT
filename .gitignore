@@ -21,6 +21,10 @@ checkpoint-*/
 *.pth
 runs/
 
+# 评估报告（生成的产物）
+eval_*.md
+evaluation_*.md
+
 # 数据（忽略所有 JSONL，只保留小样本）
 data/*.jsonl
 !data/medical_sft_1K_format.jsonl
